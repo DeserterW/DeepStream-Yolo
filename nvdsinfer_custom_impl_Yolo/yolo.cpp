@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2021, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2018-2024, NVIDIA CORPORATION. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -13,7 +13,7 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
@@ -31,10 +31,14 @@
 #endif
 
 Yolo::Yolo(const NetworkInfo& networkInfo) : m_InputBlobName(networkInfo.inputBlobName),
-    m_NetworkType(networkInfo.networkType), m_ConfigFilePath(networkInfo.configFilePath),
-    m_WtsFilePath(networkInfo.wtsFilePath), m_Int8CalibPath(networkInfo.int8CalibPath), m_DeviceType(networkInfo.deviceType),
-    m_NumDetectedClasses(networkInfo.numDetectedClasses), m_ClusterMode(networkInfo.clusterMode),
-    m_NetworkMode(networkInfo.networkMode), m_InputH(0), m_InputW(0), m_InputC(0), m_InputSize(0), m_NumClasses(0),
+    m_NetworkType(networkInfo.networkType), m_ModelName(networkInfo.modelName),
+    m_OnnxFilePath(networkInfo.onnxFilePath), m_WtsFilePath(networkInfo.wtsFilePath),
+    m_CfgFilePath(networkInfo.cfgFilePath), m_BatchSize(networkInfo.batchSize),
+    m_ImplicitBatch(networkInfo.implicitBatch), m_Int8CalibPath(networkInfo.int8CalibPath),
+    m_DeviceType(networkInfo.deviceType), m_NumDetectedClasses(networkInfo.numDetectedClasses),
+    m_ClusterMode(networkInfo.clusterMode), m_NetworkMode(networkInfo.networkMode),
+    m_ScaleFactor(networkInfo.scaleFactor), m_Offsets(networkInfo.offsets), m_WorkspaceSize(networkInfo.workspaceSize),
+    m_InputFormat(networkInfo.inputFormat), m_InputC(0), m_InputH(0), m_InputW(0), m_InputSize(0), m_NumClasses(0),
     m_LetterBox(0), m_NewCoords(0), m_YoloCount(0)
 {
 }
@@ -45,11 +49,22 @@ Yolo::~Yolo()
 }
 
 nvinfer1::ICudaEngine* 
+#if NV_TENSORRT_MAJOR >= 8
 Yolo::createEngine(nvinfer1::IBuilder* builder, nvinfer1::IBuilderConfig* config)
+#else
+Yolo::createEngine(nvinfer1::IBuilder* builder)
+#endif
 {
   assert (builder);
 
-  m_ConfigBlocks = parseConfigFile(m_ConfigFilePath);
+#if NV_TENSORRT_MAJOR < 8
+  nvinfer1::IBuilderConfig* config = builder->createBuilderConfig();
+  if (m_WorkspaceSize > 0) {
+    config->setMaxWorkspaceSize((size_t) m_WorkspaceSize * 1024 * 1024);
+  }
+#endif
+
+  m_ConfigBlocks = parseConfigFile(m_CfgFilePath);
   parseConfigBlocks();
 
   nvinfer1::INetworkDefinition *network = builder->createNetworkV2(0);

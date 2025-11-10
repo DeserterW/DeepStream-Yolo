@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2018-2024, NVIDIA CORPORATION. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -13,7 +13,7 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
@@ -41,17 +41,40 @@
 #include "layers/pooling_layer.h"
 #include "layers/reorg_layer.h"
 
+#if NV_TENSORRT_MAJOR >= 8
+#define INT int32_t
+#else
+#define INT int
+#endif
+
+#if NV_TENSORRT_MAJOR < 8 || (NV_TENSORRT_MAJOR == 8 && NV_TENSORRT_MINOR == 0)
+static class Logger : public nvinfer1::ILogger {
+  void log(nvinfer1::ILogger::Severity severity, const char* msg) noexcept override {
+    if (severity <= nvinfer1::ILogger::Severity::kWARNING)
+      std::cout << msg << std::endl;
+  }
+} logger;
+#endif
+
 struct NetworkInfo
 {
   std::string inputBlobName;
   std::string networkType;
-  std::string configFilePath;
+  std::string modelName;
+  std::string onnxFilePath;
   std::string wtsFilePath;
+  std::string cfgFilePath;
+  uint batchSize;
+  int implicitBatch;
   std::string int8CalibPath;
   std::string deviceType;
   uint numDetectedClasses;
   int clusterMode;
   std::string networkMode;
+  float scaleFactor;
+  const float* offsets;
+  uint workspaceSize;
+  int inputFormat;
 };
 
 struct TensorInfo
@@ -74,27 +97,39 @@ class Yolo : public IModelParser {
     bool hasFullDimsSupported() const override { return false; }
 
     const char* getModelName() const override {
-      return m_ConfigFilePath.empty() ? m_NetworkType.c_str() : m_ConfigFilePath.c_str();
+      return m_ModelName.c_str();
     }
 
     NvDsInferStatus parseModel(nvinfer1::INetworkDefinition& network) override;
 
+#if NV_TENSORRT_MAJOR >= 8
     nvinfer1::ICudaEngine* createEngine(nvinfer1::IBuilder* builder, nvinfer1::IBuilderConfig* config);
+#else
+    nvinfer1::ICudaEngine* createEngine(nvinfer1::IBuilder* builder);
+#endif
 
   protected:
     const std::string m_InputBlobName;
     const std::string m_NetworkType;
-    const std::string m_ConfigFilePath;
+    const std::string m_ModelName;
+    const std::string m_OnnxFilePath;
     const std::string m_WtsFilePath;
+    const std::string m_CfgFilePath;
+    const uint m_BatchSize;
+    const int m_ImplicitBatch;
     const std::string m_Int8CalibPath;
     const std::string m_DeviceType;
     const uint m_NumDetectedClasses;
     const int m_ClusterMode;
     const std::string m_NetworkMode;
+    const float m_ScaleFactor;
+    const float* m_Offsets;
+    const uint m_WorkspaceSize;
+    const int m_InputFormat;
 
+    uint m_InputC;
     uint m_InputH;
     uint m_InputW;
-    uint m_InputC;
     uint64_t m_InputSize;
     uint m_NumClasses;
     uint m_LetterBox;
