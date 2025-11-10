@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2018-2024, NVIDIA CORPORATION. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -13,7 +13,7 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
@@ -29,10 +29,6 @@
 
 extern "C" bool
 NvDsInferParseYolo(std::vector<NvDsInferLayerInfo> const& outputLayersInfo, NvDsInferNetworkInfo const& networkInfo,
-    NvDsInferParseDetectionParams const& detectionParams, std::vector<NvDsInferParseObjectInfo>& objectList);
-
-extern "C" bool
-NvDsInferParseYoloE(std::vector<NvDsInferLayerInfo> const& outputLayersInfo, NvDsInferNetworkInfo const& networkInfo,
     NvDsInferParseDetectionParams const& detectionParams, std::vector<NvDsInferParseObjectInfo>& objectList);
 
 static NvDsInferParseObjectInfo
@@ -64,8 +60,9 @@ addBBoxProposal(const float bx1, const float by1, const float bx2, const float b
 {
   NvDsInferParseObjectInfo bbi = convertBBox(bx1, by1, bx2, by2, netW, netH);
 
-  if (bbi.width < 1 || bbi.height < 1)
-      return;
+  if (bbi.width < 1 || bbi.height < 1) {
+    return;
+  }
 
   bbi.detectionConfidence = maxProb;
   bbi.classId = maxIndex;
@@ -73,22 +70,22 @@ addBBoxProposal(const float bx1, const float by1, const float bx2, const float b
 }
 
 static std::vector<NvDsInferParseObjectInfo>
-decodeTensorYolo(const float* detection, const uint& outputSize, const uint& netW, const uint& netH,
+decodeTensorYolo(const float* output, const uint& outputSize, const uint& netW, const uint& netH,
     const std::vector<float>& preclusterThreshold)
 {
   std::vector<NvDsInferParseObjectInfo> binfo;
 
   for (uint b = 0; b < outputSize; ++b) {
-    float maxProb = detection[b * 6 + 4];
-    int maxIndex = (int) detection[b * 6 + 5];
+    float maxProb = output[b * 6 + 4];
+    int maxIndex = (int) output[b * 6 + 5];
 
     if (maxProb < preclusterThreshold[maxIndex])
       continue;
 
-    float bxc = detection[b * 6 + 0];
-    float byc = detection[b * 6 + 1];
-    float bw = detection[b * 6 + 2];
-    float bh = detection[b * 6 + 3];
+    float bxc = output[b * 6 + 0];
+    float byc = output[b * 6 + 1];
+    float bw = output[b * 6 + 2];
+    float bh = output[b * 6 + 3];
 
     float bx1 = bxc - bw / 2;
     float by1 = byc - bh / 2;
@@ -102,22 +99,22 @@ decodeTensorYolo(const float* detection, const uint& outputSize, const uint& net
 }
 
 static std::vector<NvDsInferParseObjectInfo>
-decodeTensorYoloE(const float* detection, const uint& outputSize, const uint& netW, const uint& netH,
+decodeTensorYoloE(const float* output, const uint& outputSize, const uint& netW, const uint& netH,
     const std::vector<float>& preclusterThreshold)
 {
   std::vector<NvDsInferParseObjectInfo> binfo;
 
   for (uint b = 0; b < outputSize; ++b) {
-    float maxProb = detection[b * 6 + 4];
-    int maxIndex = (int) detection[b * 6 + 5];
+    float maxProb = output[b * 6 + 4];
+    int maxIndex = (int) output[b * 6 + 5];
 
     if (maxProb < preclusterThreshold[maxIndex])
       continue;
 
-    float bx1 = detection[b * 6 + 0];
-    float by1 = detection[b * 6 + 1];
-    float bx2 = detection[b * 6 + 2];
-    float by2 = detection[b * 6 + 3];
+    float bx1 = output[b * 6 + 0];
+    float by1 = output[b * 6 + 1];
+    float bx2 = output[b * 6 + 2];
+    float by2 = output[b * 6 + 3];
 
     addBBoxProposal(bx1, by1, bx2, by2, netW, netH, maxIndex, maxProb, binfo);
   }
